@@ -7,8 +7,11 @@ use app\models\LibroSearch;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\filters\VerbFilter;
+use yii\filters\AccessControl;
 
 use yii\web\UploadedFile;
+use yii\data\Pagination;
+
 
 /**
  * LibroController implements the CRUD actions for Libro model.
@@ -20,9 +23,18 @@ class LibroController extends Controller
      */
     public function behaviors()
     {
-        return array_merge(
-            parent::behaviors(),
-            [
+        return [
+                'access'=>[
+                    'class'=> AccessControl::className(),
+                    'only'=>['index', 'view', 'create', 'update', 'delete'],
+                    'rules'=>[
+                        [
+                            'allow'=>true,
+                            'roles'=>['@']
+                        ]
+                    ]
+                ]
+                ,
                 'verbs' => [
                     'class' => VerbFilter::className(),
                     'actions' => [
@@ -30,7 +42,7 @@ class LibroController extends Controller
                     ],
                 ],
             ]
-        );
+        ;
     }
 
     /**
@@ -90,9 +102,7 @@ class LibroController extends Controller
     {
         $model = $this->findModel($id);
 
-        if ($this->request->isPost && $model->load($this->request->post()) && $model->save()) {
-            return $this->redirect(['view', 'id' => $model->id]);
-        }
+        $this->subirFoto($model);
 
         return $this->render('update', [
             'model' => $model,
@@ -108,9 +118,31 @@ class LibroController extends Controller
      */
     public function actionDelete($id)
     {
-        $this->findModel($id)->delete();
+        $model=$this->findModel($id);
+
+        if(file_exists($model->imagen)){
+            unlink($model->imagen);
+        }
+        
+        $model->delete();
 
         return $this->redirect(['index']);
+    }
+
+    public function actionLista(){
+        
+        $model= Libro::find();
+
+        $paginacion=new Pagination([
+            'defaultPageSize'=>2,
+            'totalCount'=>$model->count()
+        ]);
+
+        $libros= $model->orderBy('titulo')->offset($paginacion->offset)->limit($paginacion->limit)->all();
+
+        return $this->render('lista', ['libros'=>$libros, 'paginacion'=>$paginacion]);
+
+
     }
 
     /**
@@ -135,14 +167,19 @@ class LibroController extends Controller
 
                     $model->archivo=UploadedFile::getInstance($model, 'archivo');
 
-            
+                    if(file_exists($model->imagen)){
+                        unlink($model->imagen);
+                    }
+
                     $rutaArchivo='uploads/'.time()."_".$model->archivo->baseName.".".$model->archivo->extension;
-
                     $model->archivo->saveAs($rutaArchivo);
-                    
-
+                    $model->imagen=$rutaArchivo;
                     $model->save(false);
-                        return $this->redirect(['index']);
+                    return $this->redirect(['index']);
+                  
+
+
+                          
 
         }
     }
